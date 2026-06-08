@@ -185,7 +185,6 @@
       color: var(--muted); font-size: .83rem;
     }
 
-    /* ── Paginacao ───────────────────────────────────── */
     .pagination {
       display: flex; align-items: center; gap: .5rem;
       margin-top: .75rem; font-size: .78rem; color: var(--muted);
@@ -426,8 +425,16 @@
     /* ── Selects cascata ────────────────────────── */
     async function loadAirports() {
       try {
-        const r = await fetch('data/airports.json');
-        airports = await r.json();
+        // Busca aeroportos do Supabase (substitui o antigo data/airports.json)
+        const rows = await sbFetch('aeroportos?select=icao,iata,nome,cidade,estado&order=estado.asc,cidade.asc');
+        // Mapeia colunas do banco para o formato esperado pelo restante do código
+        airports = rows.map(a => ({
+          icao:  a.icao,
+          iata:  a.iata,
+          name:  a.nome,
+          city:  a.cidade,
+          state: a.estado,
+        }));
         const states = [...new Set(airports.map(a => a.state))].sort();
         const sel = document.getElementById('sel-state');
         sel.innerHTML = '<option value="">Todos os estados</option>';
