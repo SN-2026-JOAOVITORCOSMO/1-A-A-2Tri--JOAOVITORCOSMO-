@@ -72,27 +72,34 @@ VRA_URL_ALT = (
 )
 
 # Mapeamento de colunas do CSV do VRA
-# (nomes reais no arquivo — podem variar levemente entre versões)
+# Primeira entrada de cada lista = nome real no arquivo VRA/ANAC.
+# As demais são alternativas de versões antigas ou outros portais.
 COLS = {
-    "empresa":       ["EMPRESA (SIGLA)", "Empresa (Sigla)", "sg_empresa_icao"],
-    "voo":           ["NÚMERO VOO",      "Numero Voo",      "nr_voo"],
-    "origem":        ["ORIGEM",          "Aeroporto Origem","sg_icao_origem"],
-    "destino":       ["DESTINO",         "Aeroporto Destino","sg_icao_destino"],
-    "dt_ref":        ["DT_REFERENCIA",   "Dt Referencia",   "data_referencia"],
-    "partida_prev":  ["PARTIDA PREVISTA","Partida Prevista", "dt_partida_prevista"],
-    "partida_real":  ["PARTIDA REAL",    "Partida Real",    "dt_partida_real"],
-    "chegada_prev":  ["CHEGADA PREVISTA","Chegada Prevista", "dt_chegada_prevista"],
-    "chegada_real":  ["CHEGADA REAL",    "Chegada Real",    "dt_chegada_real"],
-    "situacao":      ["SITUAÇÃO DE VOO", "Situacao Voo",    "situacao"],
-    "motivo":        ["MOTIVO",          "Motivo Alteracao","motivo_alteracao"],
+    "empresa":      ["Icao", "ICAO Empresa Aérea", "EMPRESA (SIGLA)", "Empresa (Sigla)", "sg_empresa_icao"],
+    "voo":          ["Número Voo", "NÚMERO VOO", "Numero Voo", "nr_voo"],
+    "origem":       ["Aeródromo de Origem", "ORIGEM", "Aeroporto Origem", "sg_icao_origem"],
+    "destino":      ["Aeródromo de Destino", "DESTINO", "Aeroporto Destino", "sg_icao_destino"],
+    "dt_ref":       ["DT_REFERENCIA", "Dt Referencia", "data_referencia"],
+    "partida_prev": ["Partida Prevista", "PARTIDA PREVISTA", "dt_partida_prevista"],
+    "partida_real": ["Partida Real",    "PARTIDA REAL",    "dt_partida_real"],
+    "chegada_prev": ["Chegada Prevista","CHEGADA PREVISTA", "dt_chegada_prevista"],
+    "chegada_real": ["Chegada Real",    "CHEGADA REAL",    "dt_chegada_real"],
+    "situacao":     ["Situação Voo", "SITUAÇÃO DE VOO", "Situacao Voo", "situacao"],
+    "motivo":       ["Código de Justificativa", "MOTIVO", "Motivo Alteracao", "motivo_alteracao"],
 }
 
 
 def get_col(row: dict, key: str) -> str:
-    """Tenta múltiplos nomes de coluna para compatibilidade entre versões do CSV."""
+    """Tenta múltiplos nomes de coluna; fallback insensível a maiúsculas."""
     for nome in COLS.get(key, [key]):
         if nome in row:
             return (row[nome] or "").strip()
+    # Fallback case-insensitive para variações de capitalização
+    lower_map = {k.lower(): v for k, v in row.items()}
+    for nome in COLS.get(key, [key]):
+        val = lower_map.get(nome.lower())
+        if val is not None:
+            return (val or "").strip()
     return ""
 
 
@@ -136,6 +143,8 @@ def baixar_vra() -> list[dict]:
             reader = csv.DictReader(io.StringIO(texto), delimiter=";")
             registros = list(reader)
             print(f"  VRA carregado: {len(registros)} linhas brutas")
+            if registros:
+                print(f"  Colunas detectadas: {list(registros[0].keys())}")
             return registros
         except Exception as e:
             print(f"  [ERRO] {e}")
