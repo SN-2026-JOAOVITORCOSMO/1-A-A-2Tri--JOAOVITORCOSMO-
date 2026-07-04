@@ -58,18 +58,32 @@ print(f"Período histórico: {ano_mes}")
 print(f"Aeroportos filtrados: {', '.join(AIRPORTS)}")
 
 # ── URL do VRA ────────────────────────────────────────────────────────────────
-# Formato do portal ANAC:
-# https://sistemas.anac.gov.br/dadosabertos/Voos%20e%20opera%C3%A7%C3%B5es/VRA/YYYY/AAAAMM.csv
-VRA_URL = (
-    f"https://sistemas.anac.gov.br/dadosabertos/"
-    f"Voos%20e%20opera%C3%A7%C3%B5es/VRA/{ano}/{ano}{mes}.csv"
+# Caminho correto do portal ANAC (informado pelo professor):
+# https://sistemas.anac.gov.br/dadosabertos/Voos e operações aéreas/Voo Regular Ativo (VRA)/AAAA/
+_BASE = (
+    "https://sistemas.anac.gov.br/dadosabertos/"
+    "Voos e operações aéreas/Voo Regular Ativo (VRA)"
 )
 
-# URL alternativa (portal de dados abertos)
-VRA_URL_ALT = (
-    f"https://www.gov.br/anac/pt-br/assuntos/dados-e-estatisticas/"
-    f"dados-estatisticos/arquivos/VRA{ano}{mes}.csv"
-)
+# User-Agent de navegador — alguns servidores da ANAC rejeitam requests
+# sem User-Agent (retornam 403).
+HTTP_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                  "AppleWebKit/537.36 (KHTML, like Gecko) "
+                  "Chrome/120.0 Safari/537.36"
+}
+
+# Padrões de nome de arquivo conhecidos, testados em ordem.
+VRA_URLS = [
+    f"{_BASE}/{ano}/VRA_{ano}_{mes}.csv",
+    f"{_BASE}/{ano}/VRA_{ano}{mes}.csv",
+    f"{_BASE}/{ano}/{ano}-{mes}.csv",
+    f"{_BASE}/{ano}/{ano}{mes}.csv",
+]
+
+# Pasta do ano — usada para descobrir o nome real do arquivo se os
+# padrões acima falharem (a página lista os .csv disponíveis).
+PASTA_ANO = f"{_BASE}/{ano}/"
 
 # Mapeamento de colunas do CSV do VRA
 # Primeira entrada de cada lista = nome real no arquivo VRA/ANAC.
@@ -129,25 +143,79 @@ def diff_minutos(partida_prev: str, partida_real: str) -> int | None:
 
 # ── Busca o arquivo VRA ───────────────────────────────────────────────────────
 
+def _ler_csv(conteudo: bytes) -> list[dict]:
+    """Decodifica e faz o parse do CSV do VRA (latin-1, separador ;)."""
+    texto = conteudo.decode("latin-1", errors="replace")
+    reader = csv.DictReader(io.StringIO(texto), delimiter=";")
+    registros = list(reader)
+    print(f"  VRA carregado: {len(registros)} linhas brutas")
+    if registros:
+        print(f"  Colunas detectadas: {list(registros[0].keys())}")
+    return registros
+
+
+def _descobrir_url_pela_pasta() -> str | None:
+    """
+    Lista a pasta do ano no portal da ANAC e procura um arquivo .csv
+    cujo nome contenha o mês solicitado. Retorna a URL completa ou None.
+    """
+    print(f"\n[FALLBACK] Listando a pasta do ano para localizar o arquivo:")
+    print(f"GET {PASTA_ANO}")
+    try:
+        r = requests.get(PASTA_ANO, headers=HTTP_HEADERS, timeout=120)
+        r.raise_for_status()
+        html = r.text
+    except Exception as e:
+        print(f"  [ERRO] Não foi possível listar a pasta: {e}")
+        return None
+
+    # Extrai nomes de arquivos .csv do HTML de listagem
+    import re
+    nomes = re.findall(r'href="([^"]+\.csv)"', html, flags=re.IGNORECASE)
+    if not nomes:
+        # Alguns servidores retornam os links sem aspas; tenta padrão amplo
+        nomes = re.findall(r'([^\s"\'>]+\.csv)', html, flags=re.IGNORECASE)
+
+    # Procura um arquivo que corresponda ao ano+mês (aceita AAAA_MM ou AAAAMM)
+    alvos = (f"{ano}_{mes}", f"{ano}{mes}", f"{ano}-{mes}")
+    for nome in nomes:
+        base = nome.split("/")[-1]
+        if any(alvo in base for alvo in alvos):
+            url = base if base.startswith("http") else f"{PASTA_ANO}{base}"
+            print(f"  Arquivo localizado: {base}")
+            return url
+
+    print(f"  Nenhum arquivo .csv da pasta corresponde a {ano}-{mes}.")
+    if nomes:
+        print(f"  Arquivos disponíveis na pasta: {[n.split('/')[-1] for n in nomes[:12]]}")
+    return None
+
+
 def baixar_vra() -> list[dict]:
-    for url in [VRA_URL, VRA_URL_ALT]:
+    # 1) Tenta os padrões de nome conhecidos
+    for url in VRA_URLS:
         print(f"\nGET {url}")
         try:
-            r = requests.get(url, timeout=120)
+            r = requests.get(url, headers=HTTP_HEADERS, timeout=120)
             if r.status_code == 404:
-                print(f"  Não encontrado (404) — tentando URL alternativa.")
+                print(f"  Não encontrado (404) — tentando próximo padrão de nome.")
                 continue
             r.raise_for_status()
-            # Decodifica com latin-1 (padrão do VRA)
-            texto = r.content.decode("latin-1", errors="replace")
-            reader = csv.DictReader(io.StringIO(texto), delimiter=";")
-            registros = list(reader)
-            print(f"  VRA carregado: {len(registros)} linhas brutas")
-            if registros:
-                print(f"  Colunas detectadas: {list(registros[0].keys())}")
-            return registros
+            return _ler_csv(r.content)
         except Exception as e:
             print(f"  [ERRO] {e}")
+
+    # 2) Fallback: lista a pasta do ano e descobre o nome real do arquivo
+    url = _descobrir_url_pela_pasta()
+    if url:
+        print(f"\nGET {url}")
+        try:
+            r = requests.get(url, headers=HTTP_HEADERS, timeout=120)
+            r.raise_for_status()
+            return _ler_csv(r.content)
+        except Exception as e:
+            print(f"  [ERRO] {e}")
+
     return []
 
 
@@ -222,10 +290,19 @@ def processar_vra(linhas: list[dict]) -> list[dict]:
 
 linhas_vra  = baixar_vra()
 if not linhas_vra:
-    print("\n[AVISO] VRA não disponível para o período. Encerrando.")
-    sys.exit(0)
+    print("\n[ERRO] VRA não disponível para o período em nenhum dos padrões testados.")
+    print("       Verifique se o arquivo existe no portal da ANAC para o mês solicitado.")
+    # exit(1) faz o workflow FALHAR (ícone vermelho) em vez de passar
+    # silenciosamente verde sem importar nada.
+    sys.exit(1)
 
 registros   = processar_vra(linhas_vra)
+
+if not registros:
+    print("\n[ERRO] Nenhum registro após filtrar pelos aeroportos configurados.")
+    print(f"       Aeroportos: {', '.join(AIRPORTS)}")
+    print("       O arquivo VRA foi baixado mas nenhum voo bateu com os ICAOs.")
+    sys.exit(1)
 processados = 0
 erros       = 0
 
