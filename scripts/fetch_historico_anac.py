@@ -58,32 +58,31 @@ print(f"Período histórico: {ano_mes}")
 print(f"Aeroportos filtrados: {', '.join(AIRPORTS)}")
 
 # ── URL do VRA ────────────────────────────────────────────────────────────────
-# Caminho correto do portal ANAC (informado pelo professor):
-# https://sistemas.anac.gov.br/dadosabertos/Voos e operações aéreas/Voo Regular Ativo (VRA)/AAAA/
+# O portal da ANAC (servidor IIS) organiza os dados em pastas navegáveis.
+# A estrutura pode variar: arquivo direto na pasta do ano, ou dentro de
+# subpastas por mês (ex: "02 - fevereiro/"). Em vez de adivinhar o nome,
+# o script navega recursivamente pela pasta do ano e localiza o .csv do mês.
 _BASE = (
     "https://sistemas.anac.gov.br/dadosabertos/"
     "Voos e operações aéreas/Voo Regular Ativo (VRA)"
 )
 
-# User-Agent de navegador — alguns servidores da ANAC rejeitam requests
-# sem User-Agent (retornam 403).
+# User-Agent de navegador — o servidor da ANAC rejeita requests sem
+# User-Agent (retorna 403).
 HTTP_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                   "AppleWebKit/537.36 (KHTML, like Gecko) "
                   "Chrome/120.0 Safari/537.36"
 }
 
-# Padrões de nome de arquivo conhecidos, testados em ordem.
-VRA_URLS = [
-    f"{_BASE}/{ano}/VRA_{ano}_{mes}.csv",
-    f"{_BASE}/{ano}/VRA_{ano}{mes}.csv",
-    f"{_BASE}/{ano}/{ano}-{mes}.csv",
-    f"{_BASE}/{ano}/{ano}{mes}.csv",
-]
-
-# Pasta do ano — usada para descobrir o nome real do arquivo se os
-# padrões acima falharem (a página lista os .csv disponíveis).
 PASTA_ANO = f"{_BASE}/{ano}/"
+
+# Nome do mês por extenso (para casar subpastas tipo "02 - fevereiro")
+MESES_PT = {
+    "01": "janeiro", "02": "fevereiro", "03": "março", "04": "abril",
+    "05": "maio", "06": "junho", "07": "julho", "08": "agosto",
+    "09": "setembro", "10": "outubro", "11": "novembro", "12": "dezembro",
+}
 
 # Mapeamento de colunas do CSV do VRA
 # Primeira entrada de cada lista = nome real no arquivo VRA/ANAC.
@@ -154,69 +153,111 @@ def _ler_csv(conteudo: bytes) -> list[dict]:
     return registros
 
 
-def _descobrir_url_pela_pasta() -> str | None:
+def _listar_diretorio(url: str) -> tuple[list[str], list[str]]:
     """
-    Lista a pasta do ano no portal da ANAC e procura um arquivo .csv
-    cujo nome contenha o mês solicitado. Retorna a URL completa ou None.
+    Lê uma pasta navegável do servidor IIS da ANAC e retorna
+    (arquivos_csv, subpastas) como URLs absolutas.
+    Funciona tanto com listagem estilo IIS quanto com HTML genérico.
     """
-    print(f"\n[FALLBACK] Listando a pasta do ano para localizar o arquivo:")
-    print(f"GET {PASTA_ANO}")
+    import re
+    from urllib.parse import urljoin, unquote
+
+    if not url.endswith("/"):
+        url += "/"
     try:
-        r = requests.get(PASTA_ANO, headers=HTTP_HEADERS, timeout=120)
+        r = requests.get(url, headers=HTTP_HEADERS, timeout=120)
         r.raise_for_status()
         html = r.text
     except Exception as e:
-        print(f"  [ERRO] Não foi possível listar a pasta: {e}")
-        return None
+        print(f"  [ERRO] Não foi possível listar {url}: {e}")
+        return [], []
 
-    # Extrai nomes de arquivos .csv do HTML de listagem
-    import re
-    nomes = re.findall(r'href="([^"]+\.csv)"', html, flags=re.IGNORECASE)
-    if not nomes:
-        # Alguns servidores retornam os links sem aspas; tenta padrão amplo
-        nomes = re.findall(r'([^\s"\'>]+\.csv)', html, flags=re.IGNORECASE)
+    # Captura todos os href da página
+    hrefs = re.findall(r'href="([^"]+)"', html, flags=re.IGNORECASE)
 
-    # Procura um arquivo que corresponda ao ano+mês (aceita AAAA_MM ou AAAAMM)
-    alvos = (f"{ano}_{mes}", f"{ano}{mes}", f"{ano}-{mes}")
-    for nome in nomes:
-        base = nome.split("/")[-1]
-        if any(alvo in base for alvo in alvos):
-            url = base if base.startswith("http") else f"{PASTA_ANO}{base}"
-            print(f"  Arquivo localizado: {base}")
-            return url
+    csvs, pastas = [], []
+    for h in hrefs:
+        if h.startswith("?") or h.startswith("#"):
+            continue
+        if "Parent Directory" in h or h in ("../", "/"):
+            continue
+        full = urljoin(url, h)
+        # Ignora links que sobem na hierarquia
+        if not full.startswith(_BASE):
+            continue
+        if full.lower().endswith(".csv"):
+            csvs.append(full)
+        elif full.endswith("/"):
+            pastas.append(full)
 
-    print(f"  Nenhum arquivo .csv da pasta corresponde a {ano}-{mes}.")
-    if nomes:
-        print(f"  Arquivos disponíveis na pasta: {[n.split('/')[-1] for n in nomes[:12]]}")
+    return sorted(set(csvs)), sorted(set(pastas))
+
+
+def _procurar_csv_do_mes(url: str, profundidade: int = 0) -> str | None:
+    """
+    Navega recursivamente a partir da pasta do ano procurando um .csv
+    que corresponda ao mês. Imprime a estrutura encontrada (diagnóstico).
+    """
+    indent = "  " * (profundidade + 1)
+    print(f"{indent}Listando: {url}")
+    csvs, pastas = _listar_diretorio(url)
+
+    if csvs:
+        print(f"{indent}.csv encontrados: {[c.split('/')[-1] for c in csvs][:12]}")
+    if pastas:
+        print(f"{indent}subpastas: {[p.rstrip('/').split('/')[-1] for p in pastas][:14]}")
+
+    # Alvos de nome que indicam o mês certo
+    mes_nome = MESES_PT.get(mes, "")
+    alvos = [f"{ano}_{mes}", f"{ano}{mes}", f"{ano}-{mes}",
+             f"{mes}_{ano}", f"{mes}-{ano}"]
+
+    # 1) Algum .csv nesta pasta bate com o mês?
+    for c in csvs:
+        base = c.split("/")[-1].lower()
+        if any(a in base for a in alvos):
+            print(f"{indent}→ Arquivo do mês localizado: {c.split('/')[-1]}")
+            return c
+
+    # 2) Se só há um csv e a pasta já é a do mês, aceita
+    if len(csvs) == 1 and profundidade > 0:
+        print(f"{indent}→ Único .csv na pasta do mês: {csvs[0].split('/')[-1]}")
+        return csvs[0]
+
+    # 3) Desce em subpastas que correspondam ao mês (ex: "02 - fevereiro")
+    if profundidade < 2:
+        for p in pastas:
+            nome_pasta = p.rstrip("/").split("/")[-1].lower()
+            casa_mes = (
+                nome_pasta.startswith(mes) or
+                (mes_nome and mes_nome in nome_pasta) or
+                any(a in nome_pasta for a in alvos)
+            )
+            if casa_mes:
+                achado = _procurar_csv_do_mes(p, profundidade + 1)
+                if achado:
+                    return achado
+
     return None
 
 
 def baixar_vra() -> list[dict]:
-    # 1) Tenta os padrões de nome conhecidos
-    for url in VRA_URLS:
-        print(f"\nGET {url}")
-        try:
-            r = requests.get(url, headers=HTTP_HEADERS, timeout=120)
-            if r.status_code == 404:
-                print(f"  Não encontrado (404) — tentando próximo padrão de nome.")
-                continue
-            r.raise_for_status()
-            return _ler_csv(r.content)
-        except Exception as e:
-            print(f"  [ERRO] {e}")
+    print(f"\n[BUSCA] Procurando VRA de {ano}-{mes} a partir da pasta do ano.")
+    url_csv = _procurar_csv_do_mes(PASTA_ANO, profundidade=0)
 
-    # 2) Fallback: lista a pasta do ano e descobre o nome real do arquivo
-    url = _descobrir_url_pela_pasta()
-    if url:
-        print(f"\nGET {url}")
-        try:
-            r = requests.get(url, headers=HTTP_HEADERS, timeout=120)
-            r.raise_for_status()
-            return _ler_csv(r.content)
-        except Exception as e:
-            print(f"  [ERRO] {e}")
+    if not url_csv:
+        print(f"\n[ERRO] Nenhum .csv correspondente a {ano}-{mes} foi localizado "
+              f"na estrutura de pastas do portal ANAC.")
+        return []
 
-    return []
+    print(f"\nGET {url_csv}")
+    try:
+        r = requests.get(url_csv, headers=HTTP_HEADERS, timeout=180)
+        r.raise_for_status()
+        return _ler_csv(r.content)
+    except Exception as e:
+        print(f"  [ERRO] Falha ao baixar o arquivo: {e}")
+        return []
 
 
 # ── Processa e filtra registros ───────────────────────────────────────────────
