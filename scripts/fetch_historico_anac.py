@@ -88,27 +88,35 @@ MESES_PT = {
 # Primeira entrada de cada lista = nome real no arquivo VRA/ANAC.
 # As demais são alternativas de versões antigas ou outros portais.
 COLS = {
-    "empresa":      ["Icao", "ICAO Empresa Aérea", "EMPRESA (SIGLA)", "Empresa (Sigla)", "sg_empresa_icao"],
-    "voo":          ["Número Voo", "NÚMERO VOO", "Numero Voo", "nr_voo"],
-    "origem":       ["Aeródromo de Origem", "ORIGEM", "Aeroporto Origem", "sg_icao_origem"],
-    "destino":      ["Aeródromo de Destino", "DESTINO", "Aeroporto Destino", "sg_icao_destino"],
-    "dt_ref":       ["DT_REFERENCIA", "Dt Referencia", "data_referencia"],
+    "empresa":      ["Sigla ICAO Empresa Aérea", "ICAO Empresa Aérea", "Icao",
+                     "EMPRESA (SIGLA)", "Empresa (Sigla)", "sg_empresa_icao"],
+    "voo":          ["Número Voo", "Numero Voo", "NÚMERO VOO", "nr_voo"],
+    "origem":       ["ICAO Aeródromo Origem", "Aeródromo de Origem", "ORIGEM",
+                     "Aeroporto Origem", "sg_icao_origem"],
+    "destino":      ["ICAO Aeródromo Destino", "Aeródromo de Destino", "DESTINO",
+                     "Aeroporto Destino", "sg_icao_destino"],
+    "dt_ref":       ["Data Prevista", "DT_REFERENCIA", "Dt Referencia", "data_referencia"],
     "partida_prev": ["Partida Prevista", "PARTIDA PREVISTA", "dt_partida_prevista"],
     "partida_real": ["Partida Real",    "PARTIDA REAL",    "dt_partida_real"],
     "chegada_prev": ["Chegada Prevista","CHEGADA PREVISTA", "dt_chegada_prevista"],
     "chegada_real": ["Chegada Real",    "CHEGADA REAL",    "dt_chegada_real"],
-    "situacao":     ["Situação Voo", "SITUAÇÃO DE VOO", "Situacao Voo", "situacao"],
-    "motivo":       ["Código de Justificativa", "MOTIVO", "Motivo Alteracao", "motivo_alteracao"],
+    "situacao":     ["Situação Voo", "Situação", "SITUAÇÃO DE VOO", "Situacao Voo", "situacao"],
+    "motivo":       ["Justificativa", "Código de Justificativa", "MOTIVO",
+                     "Motivo Alteracao", "motivo_alteracao"],
 }
 
 
 def get_col(row: dict, key: str) -> str:
     """Tenta múltiplos nomes de coluna; fallback insensível a maiúsculas."""
     for nome in COLS.get(key, [key]):
-        if nome in row:
+        if nome in row and row[nome] is not None:
             return (row[nome] or "").strip()
-    # Fallback case-insensitive para variações de capitalização
-    lower_map = {k.lower(): v for k, v in row.items()}
+    # Fallback case-insensitive — ignora chaves/valores None
+    lower_map = {
+        k.lower(): v
+        for k, v in row.items()
+        if isinstance(k, str)
+    }
     for nome in COLS.get(key, [key]):
         val = lower_map.get(nome.lower())
         if val is not None:
@@ -143,13 +151,53 @@ def diff_minutos(partida_prev: str, partida_real: str) -> int | None:
 # ── Busca o arquivo VRA ───────────────────────────────────────────────────────
 
 def _ler_csv(conteudo: bytes) -> list[dict]:
-    """Decodifica e faz o parse do CSV do VRA (latin-1, separador ;)."""
-    texto = conteudo.decode("latin-1", errors="replace")
-    reader = csv.DictReader(io.StringIO(texto), delimiter=";")
+    """
+    Decodifica e faz o parse do CSV do VRA.
+
+    Particularidades do arquivo VRA/ANAC:
+      - A 1ª linha é um banner de metadados (ex: "Atualizado em: 2026-06-28"),
+        NÃO o cabeçalho. O cabeçalho real vem na 2ª linha.
+      - Separador ';'.
+      - Codificação normalmente UTF-8 com BOM; latin-1 como fallback.
+    """
+    # Tenta decodificar priorizando UTF-8 com BOM (remove o ï»¿)
+    texto = None
+    for enc in ("utf-8-sig", "latin-1"):
+        try:
+            texto = conteudo.decode(enc)
+            print(f"  Codificação usada: {enc}")
+            break
+        except Exception:
+            continue
+    if texto is None:
+        texto = conteudo.decode("latin-1", errors="replace")
+
+    linhas = texto.splitlines()
+    if not linhas:
+        print("  [ERRO] Arquivo vazio.")
+        return []
+
+    # Detecta a linha de cabeçalho: a que contém os nomes das colunas.
+    # O banner de metadados não tem ';' repetido; o cabeçalho real tem
+    # várias colunas separadas por ';'.
+    idx_header = 0
+    for i, ln in enumerate(linhas[:5]):
+        if ln.count(";") >= 3:      # cabeçalho real tem muitos ';'
+            idx_header = i
+            break
+
+    if idx_header > 0:
+        print(f"  Ignorando {idx_header} linha(s) de metadados no topo "
+              f"(ex: {linhas[0][:60]!r})")
+
+    corpo = "\n".join(linhas[idx_header:])
+    reader = csv.DictReader(io.StringIO(corpo), delimiter=";")
     registros = list(reader)
-    print(f"  VRA carregado: {len(registros)} linhas brutas")
+
+    print(f"  VRA carregado: {len(registros)} linhas de dados")
     if registros:
-        print(f"  Colunas detectadas: {list(registros[0].keys())}")
+        cols = [c for c in registros[0].keys() if c]
+        print(f"  Colunas detectadas: {cols}")
     return registros
 
 
@@ -209,8 +257,10 @@ def _procurar_csv_do_mes(url: str, profundidade: int = 0) -> str | None:
 
     # Alvos de nome que indicam o mês certo
     mes_nome = MESES_PT.get(mes, "")
+    mes_sz = str(int(mes))  # mês sem zero à esquerda (ex: "4" para abril)
     alvos = [f"{ano}_{mes}", f"{ano}{mes}", f"{ano}-{mes}",
-             f"{mes}_{ano}", f"{mes}-{ano}"]
+             f"{mes}_{ano}", f"{mes}-{ano}",
+             f"{ano}_{mes_sz}", f"{ano}{mes_sz}"]  # padrão VRA_20264.csv
 
     # 1) Algum .csv nesta pasta bate com o mês?
     for c in csvs:
