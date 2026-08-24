@@ -1,0 +1,371 @@
+[
+  {
+    "icao": "SBCA",
+    "iata": "CAC",
+    "name": "Aeroporto Regional do Oeste",
+    "city": "Cascavel",
+    "state": "Paraná",
+    "lat": -24.9679,
+    "lon": -53.5008
+  },
+  {
+    "icao": "SBCT",
+    "iata": "CWB",
+    "name": "Afonso Pena Internacional",
+    "city": "Curitiba",
+    "state": "Paraná",
+    "lat": -25.5285,
+    "lon": -49.1758
+  },
+  {
+    "icao": "SBLO",
+    "iata": "LDB",
+    "name": "General Leite de Castro",
+    "city": "Londrina",
+    "state": "Paraná",
+    "lat": -23.3336,
+    "lon": -51.1301
+  },
+  {
+    "icao": "SBMG",
+    "iata": "MGF",
+    "name": "Silvio Name Júnior Regional",
+    "city": "Maringá",
+    "state": "Paraná",
+    "lat": -23.4764,
+    "lon": -52.0122
+  },
+  {
+    "icao": "SBFI",
+    "iata": "IGU",
+    "name": "Cataratas Internacional",
+    "city": "Foz do Iguaçu",
+    "state": "Paraná",
+    "lat": -25.6003,
+    "lon": -54.4852
+  },
+  {
+    "icao": "SBFL",
+    "iata": "FLN",
+    "name": "Hercílio Luz Internacional",
+    "city": "Florianópolis",
+    "state": "Santa Catarina",
+    "lat": -27.6702,
+    "lon": -48.5525
+  },
+  {
+    "icao": "SBJV",
+    "iata": "JOI",
+    "name": "Lauro Carneiro de Loyola",
+    "city": "Joinville",
+    "state": "Santa Catarina",
+    "lat": -26.2245,
+    "lon": -48.7975
+  },
+  {
+    "icao": "SBNF",
+    "iata": "NVT",
+    "name": "Min. Victor Konder Internacional",
+    "city": "Navegantes",
+    "state": "Santa Catarina",
+    "lat": -26.88,
+    "lon": -48.6513
+  },
+  {
+    "icao": "SBPA",
+    "iata": "POA",
+    "name": "Salgado Filho Internacional",
+    "city": "Porto Alegre",
+    "state": "Rio Grande do Sul",
+    "lat": -29.9944,
+    "lon": -51.1714
+  },
+  {
+    "icao": "SBCX",
+    "iata": "CXJ",
+    "name": "Hugo Cantergiani Regional",
+    "city": "Caxias do Sul",
+    "state": "Rio Grande do Sul",
+    "lat": -29.1971,
+    "lon": -51.1875
+  },
+  {
+    "icao": "SBGR",
+    "iata": "GRU",
+    "name": "Guarulhos Internacional",
+    "city": "Guarulhos",
+    "state": "São Paulo",
+    "lat": -23.4356,
+    "lon": -46.4731
+  },
+  {
+    "icao": "SBSP",
+    "iata": "CGH",
+    "name": "Congonhas",
+    "city": "São Paulo",
+    "state": "São Paulo",
+    "lat": -23.6261,
+    "lon": -46.6564
+  },
+  {
+    "icao": "SBKP",
+    "iata": "VCP",
+    "name": "Viracopos Internacional",
+    "city": "Campinas",
+    "state": "São Paulo",
+    "lat": -23.0074,
+    "lon": -47.1345
+  },
+  {
+    "icao": "SBRP",
+    "iata": "RAO",
+    "name": "Leite Lopes",
+    "city": "Ribeirão Preto",
+    "state": "São Paulo",
+    "lat": -21.1363,
+    "lon": -47.7766
+  },
+  {
+    "icao": "SBGL",
+    "iata": "GIG",
+    "name": "Galeão Internacional",
+    "city": "Rio de Janeiro",
+    "state": "Rio de Janeiro",
+    "lat": -22.8099,
+    "lon": -43.2506
+  },
+  {
+    "icao": "SBRJ",
+    "iata": "SDU",
+    "name": "Santos Dumont",
+    "city": "Rio de Janeiro",
+    "state": "Rio de Janeiro",
+    "lat": -22.9105,
+    "lon": -43.1631
+  },
+  {
+    "icao": "SBCF",
+    "iata": "CNF",
+    "name": "Tancredo Neves Internacional",
+    "city": "Belo Horizonte",
+    "state": "Minas Gerais",
+    "lat": -19.6244,
+    "lon": -43.972
+  },
+  {
+    "icao": "SBUL",
+    "iata": "UDI",
+    "name": "Ten. Cel. Aviador César Bombonato",
+    "city": "Uberlândia",
+    "state": "Minas Gerais",
+    "lat": -18.8836,
+    "lon": -48.2253
+  },
+  {
+    "icao": "SBMK",
+    "iata": "MOC",
+    "name": "Mário Ribeiro",
+    "city": "Montes Claros",
+    "state": "Minas Gerais",
+    "lat": -16.7069,
+    "lon": -43.8189
+  },
+  {
+    "icao": "SBVT",
+    "iata": "VIX",
+    "name": "Eurico de Aguiar Salles",
+    "city": "Vitória",
+    "state": "Espírito Santo",
+    "lat": -20.2581,
+    "lon": -40.2864
+  },
+  {
+    "icao": "SBBR",
+    "iata": "BSB",
+    "name": "JK Internacional",
+    "city": "Brasília",
+    "state": "Distrito Federal",
+    "lat": -15.8711,
+    "lon": -47.9186
+  },
+  {
+    "icao": "SBGO",
+    "iata": "GYN",
+    "name": "Santa Genoveva",
+    "city": "Goiânia",
+    "state": "Goiás",
+    "lat": -16.632,
+    "lon": -49.2207
+  },
+  {
+    "icao": "SBCY",
+    "iata": "CGB",
+    "name": "Marechal Rondon Internacional",
+    "city": "Cuiabá",
+    "state": "Mato Grosso",
+    "lat": -15.653,
+    "lon": -56.1167
+  },
+  {
+    "icao": "SBCG",
+    "iata": "CGR",
+    "name": "Antonio João Internacional",
+    "city": "Campo Grande",
+    "state": "Mato Grosso do Sul",
+    "lat": -20.4687,
+    "lon": -54.6725
+  },
+  {
+    "icao": "SBSV",
+    "iata": "SSA",
+    "name": "Dep. Luís Eduardo Magalhães",
+    "city": "Salvador",
+    "state": "Bahia",
+    "lat": -12.9086,
+    "lon": -38.3225
+  },
+  {
+    "icao": "SBFZ",
+    "iata": "FOR",
+    "name": "Pinto Martins Internacional",
+    "city": "Fortaleza",
+    "state": "Ceará",
+    "lat": -3.7762,
+    "lon": -38.5326
+  },
+  {
+    "icao": "SBRF",
+    "iata": "REC",
+    "name": "Guararapes Internacional",
+    "city": "Recife",
+    "state": "Pernambuco",
+    "lat": -8.1265,
+    "lon": -34.9237
+  },
+  {
+    "icao": "SBSL",
+    "iata": "SLZ",
+    "name": "Cunha Machado Internacional",
+    "city": "São Luís",
+    "state": "Maranhão",
+    "lat": -2.5855,
+    "lon": -44.2341
+  },
+  {
+    "icao": "SBTE",
+    "iata": "THE",
+    "name": "Sen. Petrônio Portella",
+    "city": "Teresina",
+    "state": "Piauí",
+    "lat": -5.06,
+    "lon": -42.8237
+  },
+  {
+    "icao": "SBJP",
+    "iata": "JPA",
+    "name": "Pres. Castro Pinto Internacional",
+    "city": "João Pessoa",
+    "state": "Paraíba",
+    "lat": -7.1458,
+    "lon": -34.9508
+  },
+  {
+    "icao": "SBMO",
+    "iata": "MCZ",
+    "name": "Zumbi dos Palmares Internacional",
+    "city": "Maceió",
+    "state": "Alagoas",
+    "lat": -9.5108,
+    "lon": -35.7917
+  },
+  {
+    "icao": "SBSE",
+    "iata": "AJU",
+    "name": "Santa Maria",
+    "city": "Aracaju",
+    "state": "Sergipe",
+    "lat": -10.9847,
+    "lon": -37.0703
+  },
+  {
+    "icao": "SBSG",
+    "iata": "NAT",
+    "name": "São Gonçalo do Amarante Internacional",
+    "city": "Natal",
+    "state": "Rio Grande do Norte",
+    "lat": -5.7681,
+    "lon": -35.3764
+  },
+  {
+    "icao": "SBEG",
+    "iata": "MAO",
+    "name": "Eduardo Gomes Internacional",
+    "city": "Manaus",
+    "state": "Amazonas",
+    "lat": -3.0386,
+    "lon": -60.0497
+  },
+  {
+    "icao": "SBBE",
+    "iata": "BEL",
+    "name": "Val-de-Cans Internacional",
+    "city": "Belém",
+    "state": "Pará",
+    "lat": -1.3793,
+    "lon": -48.4764
+  },
+  {
+    "icao": "SBSN",
+    "iata": "STM",
+    "name": "Maestro Wilson Fonseca",
+    "city": "Santarém",
+    "state": "Pará",
+    "lat": -2.4242,
+    "lon": -54.7858
+  },
+  {
+    "icao": "SBMQ",
+    "iata": "MCP",
+    "name": "Alberto Alcolumbre Internacional",
+    "city": "Macapá",
+    "state": "Amapá",
+    "lat": 0.0506,
+    "lon": -51.0722
+  },
+  {
+    "icao": "SBBV",
+    "iata": "BVB",
+    "name": "Atlas Brasil Cantanhede Internacional",
+    "city": "Boa Vista",
+    "state": "Roraima",
+    "lat": 2.8414,
+    "lon": -60.6922
+  },
+  {
+    "icao": "SBPV",
+    "iata": "PVH",
+    "name": "Gov. Jorge Teixeira de Oliveira",
+    "city": "Porto Velho",
+    "state": "Rondônia",
+    "lat": -8.7093,
+    "lon": -63.9023
+  },
+  {
+    "icao": "SBRB",
+    "iata": "RBR",
+    "name": "Plácido de Castro Internacional",
+    "city": "Rio Branco",
+    "state": "Acre",
+    "lat": -9.8688,
+    "lon": -67.8981
+  },
+  {
+    "icao": "SBPJ",
+    "iata": "PMW",
+    "name": "Brig. Lysias Rodrigues",
+    "city": "Palmas",
+    "state": "Tocantins",
+    "lat": -10.2913,
+    "lon": -48.3569
+  }
+]
