@@ -201,14 +201,14 @@ def _ler_csv(conteudo: bytes) -> list[dict]:
     return registros
 
 
-def _listar_diretorio(url: str) -> tuple[list[str], list[str]]:
+def _listar_diretorio(url: str, avisar_vazio: bool = True) -> tuple[list[str], list[str]]:
     """
     Lê uma pasta navegável do servidor IIS da ANAC e retorna
     (arquivos_csv, subpastas) como URLs absolutas.
     Funciona tanto com listagem estilo IIS quanto com HTML genérico.
     """
     import re
-    from urllib.parse import urljoin
+    from urllib.parse import urljoin, unquote
 
     if not url.endswith("/"):
         url += "/"
@@ -223,6 +223,12 @@ def _listar_diretorio(url: str) -> tuple[list[str], list[str]]:
     # Captura todos os href da página
     hrefs = re.findall(r'href="([^"]+)"', html, flags=re.IGNORECASE)
 
+    # _BASE tem espaços e acentos literais ("Voo Regular Ativo (VRA)"), mas o
+    # servidor devolve os links percent-encoded ("Voo%20Regular%20Ativo").
+    # Comparar as duas formas diretamente descartaria todos os links, então a
+    # comparação é feita sobre a versão decodificada dos dois lados.
+    base_cmp = unquote(_BASE)
+
     csvs, pastas = [], []
     for h in hrefs:
         if h.startswith("?") or h.startswith("#"):
@@ -230,13 +236,18 @@ def _listar_diretorio(url: str) -> tuple[list[str], list[str]]:
         if "Parent Directory" in h or h in ("../", "/"):
             continue
         full = urljoin(url, h)
-        # Ignora links que sobem na hierarquia
-        if not full.startswith(_BASE):
+        # Ignora links que sobem na hierarquia ou saem da pasta do VRA
+        if not unquote(full).startswith(base_cmp):
             continue
         if full.lower().endswith(".csv"):
             csvs.append(full)
         elif full.endswith("/"):
             pastas.append(full)
+
+    if not csvs and not pastas and avisar_vazio:
+        # Diferencia "pasta existe mas está vazia" de "deu erro na requisição".
+        # Sem esta linha o log fica mudo e parece que o script não fez nada.
+        print(f"  [AVISO] Pasta sem .csv e sem subpastas: {url}")
 
     return sorted(set(csvs)), sorted(set(pastas))
 
@@ -294,16 +305,65 @@ def _procurar_csv_do_mes(url: str, profundidade: int = 0) -> str | None:
     return None
 
 
+def _csv_mais_recente(url_ano: str, rotulo_ano: str) -> tuple[str, str] | None:
+    """
+    Fallback para quando o mês pedido ainda não foi publicado.
+
+    A ANAC cria a pasta do mês assim que o mês começa, mas só deposita o .csv
+    semanas depois. Sem este fallback o job falha sempre que a publicação está
+    atrasada — e o atraso é a regra, não a exceção. Varre as subpastas do ano
+    de dezembro para janeiro e devolve o primeiro arquivo que existir de fato.
+    """
+    import re
+    from urllib.parse import unquote
+
+    _, pastas = _listar_diretorio(url_ano)
+    if not pastas:
+        return None
+
+    def _num_do_mes(p: str) -> int:
+        nome = unquote(p.rstrip("/").split("/")[-1])
+        m = re.match(r"\s*(\d{1,2})", nome)
+        return int(m.group(1)) if m else 0
+
+    for p in sorted(pastas, key=_num_do_mes, reverse=True):
+        nome = unquote(p.rstrip("/").split("/")[-1])
+        # avisar_vazio=False: aqui a pasta vazia é esperada e já é informada
+        # pela linha "(ainda vazia)" logo abaixo — evita log duplicado.
+        csvs, _ = _listar_diretorio(p, avisar_vazio=False)
+        if csvs:
+            print(f"  → Publicação mais recente encontrada: {rotulo_ano}/{nome}")
+            return csvs[0], f"{rotulo_ano}/{nome}"
+        print(f"  (ainda vazia) {rotulo_ano}/{nome}")
+
+    return None
+
+
 def baixar_vra() -> list[dict]:
     print(f"\n[BUSCA] Procurando VRA de {ano}-{mes} a partir da pasta do ano.")
     url_csv = _procurar_csv_do_mes(PASTA_ANO, profundidade=0)
+    periodo = f"{ano}-{mes}"
 
     if not url_csv:
-        print(f"\n[ERRO] Nenhum .csv correspondente a {ano}-{mes} foi localizado "
-              f"na estrutura de pastas do portal ANAC.")
-        return []
+        print(f"\n[AVISO] A pasta de {ano}-{mes} existe no portal, mas ainda não "
+              f"tem o .csv publicado.")
+        print(f"[FALLBACK] Procurando o mês mais recente já publicado em {ano}.")
+        achado = _csv_mais_recente(PASTA_ANO, ano)
 
-    print(f"\nGET {url_csv}")
+        if not achado:
+            ano_anterior = str(int(ano) - 1)
+            print(f"[FALLBACK] Nada publicado em {ano}. Tentando {ano_anterior}.")
+            achado = _csv_mais_recente(f"{_BASE}/{ano_anterior}/", ano_anterior)
+
+        if not achado:
+            print(f"\n[ERRO] Nenhum .csv localizado na estrutura de pastas do "
+                  f"portal da ANAC.")
+            return []
+
+        url_csv, periodo = achado
+
+    print(f"\n[PERÍODO IMPORTADO] {periodo}")
+    print(f"GET {url_csv}")
     try:
         r = requests.get(url_csv, headers=HTTP_HEADERS, timeout=180)
         r.raise_for_status()
