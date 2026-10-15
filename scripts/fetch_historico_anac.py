@@ -101,7 +101,8 @@ COLS = {
     "chegada_prev": ["Chegada Prevista","CHEGADA PREVISTA", "dt_chegada_prevista"],
     "chegada_real": ["Chegada Real",    "CHEGADA REAL",    "dt_chegada_real"],
     "situacao":     ["Situação Voo", "Situação", "SITUAÇÃO DE VOO", "Situacao Voo", "situacao"],
-    "motivo":       ["Justificativa", "Código de Justificativa", "MOTIVO",
+    "motivo":       ["Código Justificativa", "Justificativa",
+                     "Código de Justificativa", "MOTIVO",
                      "Motivo Alteracao", "motivo_alteracao"],
 }
 
@@ -132,6 +133,25 @@ def parse_dt_anac(dt_str: str) -> str | None:
         try:
             dt = datetime.strptime(dt_str.strip(), fmt)
             return dt.replace(tzinfo=timezone.utc).isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def _data_de(valor: str) -> str | None:
+    """
+    Extrai só a data (YYYY-MM-DD) de um campo do VRA.
+
+    O campo pode vir como data pura ou data+hora, em formato brasileiro ou
+    ISO. Serve para obter a data de referência do voo a partir da partida
+    quando o arquivo não traz uma coluna de data própria.
+    """
+    if not valor:
+        return None
+    parte = valor.strip().replace("T", " ").split(" ")[0]   # descarta a hora
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%d-%m-%Y", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(parte, fmt).date().isoformat()
         except ValueError:
             continue
     return None
@@ -393,21 +413,25 @@ def processar_vra(linhas: list[dict]) -> list[dict]:
         situacao      = get_col(row, "situacao")
         motivo        = get_col(row, "motivo")
 
-        # Data de referência
-        dt_ref = None
-        if dt_ref_str:
-            try:
-                for fmt in ("%d/%m/%Y", "%Y-%m-%d"):
-                    try:
-                        dt_ref = datetime.strptime(dt_ref_str.strip(), fmt).date().isoformat()
-                        break
-                    except ValueError:
-                        continue
-            except Exception:
-                pass
+        # Data de referência do voo.
+        #
+        # Nem todo arquivo VRA traz uma coluna de data própria: o de 2026 tem
+        # apenas "Partida Prevista". Sem este fallback, dt_referencia fica NULL
+        # em todos os registros e a chave de deduplicação logo abaixo perde o
+        # dia — o mesmo número de voo na mesma rota, em dias diferentes do mês,
+        # passa a colidir e 90%+ do arquivo é descartado como "duplicata".
+        dt_ref = (_data_de(dt_ref_str)
+                  or _data_de(partida_prev)
+                  or _data_de(partida_real))
+
+        # O rótulo do mês vem da data do próprio registro, não do período que
+        # foi pedido na execução. Com o fallback, o mês baixado pode ser outro
+        # — gravar o pedido rotularia voos de julho como se fossem de setembro,
+        # e qualquer consulta agrupada por ano_mes passaria a mentir.
+        ano_mes_registro = dt_ref[:7] if dt_ref else ano_mes
 
         resultado.append({
-            "ano_mes":          ano_mes,
+            "ano_mes":          ano_mes_registro,
             "icao_empresa":     empresa or None,
             "nr_voo":           nr_voo or None,
             "icao_origem":      origem or None,
@@ -437,6 +461,29 @@ def processar_vra(linhas: list[dict]) -> list[dict]:
     if len(_deduped) < len(resultado):
         print(f"  {len(resultado) - len(_deduped)} duplicata(s) removida(s) do lote.")
     print(f"  Registros filtrados para os aeroportos configurados: {len(_deduped)}")
+
+    # ── Guardas de sanidade ──────────────────────────────────────────────────
+    # Sem elas, um arquivo que mudou de colunas é importado pela metade e o
+    # job termina verde. Foi o que aconteceu antes: dt_referencia saiu NULL,
+    # a chave de deduplicação perdeu o dia e 93% do mês virou "duplicata".
+
+    sem_data = sum(1 for _r in _deduped if not _r["dt_referencia"])
+    if sem_data:
+        print(f"  [ATENÇÃO] {sem_data} registro(s) sem data de referência.")
+
+    if _deduped and sem_data / len(_deduped) > 0.5:
+        print("\n[ERRO] Mais da metade dos registros ficou sem data de referência.")
+        print("       O arquivo da ANAC provavelmente mudou os nomes das colunas.")
+        print(f"       Colunas lidas: {[c for c in linhas[0].keys() if c]}")
+        sys.exit(1)
+
+    if resultado and len(_deduped) / len(resultado) < 0.5:
+        descartado = 100 * (1 - len(_deduped) / len(resultado))
+        print(f"\n[ERRO] A deduplicação descartou {descartado:.0f}% do arquivo.")
+        print("       Nessa proporção não é duplicata real: é campo da chave")
+        print("       vindo vazio. Conferir o mapeamento em COLS.")
+        sys.exit(1)
+
     return _deduped
 
 
